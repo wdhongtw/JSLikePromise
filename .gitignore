@@ -1,11 +1,8 @@
-# root folder for GTest dependency in Visual Studio build
-/packages
-
 *.vcxproj.user
 /.vs
 /mdautogen/.idea
 /mdautogen/node_modules
 *.bak
 
-**/[Dd]ebug
-**/[Rr]elease
+# Common choice for CMake build folder
+/build
