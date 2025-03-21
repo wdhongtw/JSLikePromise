@@ -1,3 +1,6 @@
+# root folder for GTest dependency in Visual Studio build
+/packages
+
 *.vcxproj.user
 /.vs
 /mdautogen/.idea

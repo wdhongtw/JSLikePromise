@@ -1,4 +1,4 @@
-#include "CppUnitTest.h"
+#include "gtest/gtest.h"
 
 #include <coroutine>
 #include <functional>
@@ -7,17 +7,14 @@
 
 #include "../JSLikePromise.hpp"
 
-using namespace Microsoft::VisualStudio::CppUnitTestFramework;
-
 using namespace std;
 using namespace JSLike;
 
 namespace TestJSLikeVoidPromise
 {
 	//***************************************************************************************
-	TEST_CLASS(Test_co_await)
-	{
-	private:
+	class VoidTest_co_await : public testing::Test {
+	protected:
 		Promise<bool> myCoAwaitingCoroutine(Promise<>& p) {
 			co_await p;
 			co_return true;
@@ -33,74 +30,74 @@ namespace TestJSLikeVoidPromise
 			co_return false;
 		}
 
-	public:
-		TEST_METHOD(Prereject_uncaught)
+	};
+	namespace {
+		TEST_F(VoidTest_co_await, Prereject_uncaught)
 		{
 			auto [p1, p1state] = Promise<>::getUnresolvedPromiseAndState();
 			// Prereject p1.
 			p1state->reject(make_exception_ptr(out_of_range("invalid string position")));
 
 			auto result = myCoAwaitingCoroutine(p1);
-			Assert::IsFalse(result.isResolved());
-			Assert::IsTrue(result.isRejected());
+			EXPECT_FALSE(result.isResolved());
+			EXPECT_TRUE(result.isRejected());
 		}
 
-		TEST_METHOD(Preresolved)
+		TEST_F(VoidTest_co_await, Preresolved)
 		{
 			Promise<> p1;
 
 			auto result = myCoAwaitingCoroutine(p1);
-			Assert::IsTrue(result.isResolved());
-			Assert::IsTrue(result.value() == true);
+			EXPECT_TRUE(result.isResolved());
+			EXPECT_TRUE(result.value() == true);
 		}
 
-		TEST_METHOD(Reject_try_catch)
+		TEST_F(VoidTest_co_await, Reject_try_catch)
 		{
 			auto [p1, p1state] = Promise<>::getUnresolvedPromiseAndState();
 
 			auto result = myCoAwaitingCoroutineThatCatches(p1);
 
-			Assert::IsFalse(result.isResolved());
+			EXPECT_FALSE(result.isResolved());
 
 			// Reject p1.  An exception should be thrown in the coroutine.
 			p1state->reject(make_exception_ptr(out_of_range("invalid string position")));
 
-			Assert::IsTrue(result.isResolved());
-			Assert::AreEqual(true, result.value());
+			EXPECT_TRUE(result.isResolved());
+			EXPECT_EQ(true, result.value());
 		}
 
-		TEST_METHOD(Reject_uncaught)
+		TEST_F(VoidTest_co_await, Reject_uncaught)
 		{
 			auto [p1, p1state] = Promise<>::getUnresolvedPromiseAndState();
 
 			auto result = myCoAwaitingCoroutine(p1);
 
-			Assert::IsFalse(result.isResolved());
-			Assert::IsFalse(result.isRejected());
+			EXPECT_FALSE(result.isResolved());
+			EXPECT_FALSE(result.isRejected());
 
 			// Reject p1.  An exception should be thrown in the coroutine.
 			p1state->reject(make_exception_ptr(out_of_range("invalid string position")));
 
-			Assert::IsFalse(result.isResolved());
-			Assert::IsTrue(result.isRejected());
+			EXPECT_FALSE(result.isResolved());
+			EXPECT_TRUE(result.isRejected());
 		}
 
-		TEST_METHOD(ResolvedLater)
+		TEST_F(VoidTest_co_await, ResolvedLater)
 		{
 			auto [p0, p0state] = Promise<>::getUnresolvedPromiseAndState();
 
 			auto result = myCoAwaitingCoroutine(p0);
 
-			Assert::IsFalse(result.isResolved());
+			EXPECT_FALSE(result.isResolved());
 			p0state->resolve();
-			Assert::IsTrue(result.isResolved());
-			Assert::IsTrue(result.value() == true);
+			EXPECT_TRUE(result.isResolved());
+			EXPECT_TRUE(result.value() == true);
 		}
-	};
+	}
 	//***************************************************************************************
-	TEST_CLASS(Test_co_return_Explicit)
-	{
-	private:
+	class VoidTest_co_return_Explicit : public testing::Test {
+	protected:
 		Promise<> CoReturnPromise() {
 			co_return;
 		}
@@ -114,17 +111,17 @@ namespace TestJSLikeVoidPromise
 			char c = std::string().at(1); // this throws a std::out_of_range
 			co_return;
 		}
-
-	public:
-		TEST_METHOD(Co_await)
+	};
+	namespace {
+		TEST_F(VoidTest_co_return_Explicit, Co_await)
 		{
 			auto result = CoAwait();
 
-			Assert::IsTrue(result.isResolved());
-			Assert::IsTrue(result.value() == true);
+			EXPECT_TRUE(result.isResolved());
+			EXPECT_TRUE(result.value() == true);
 		}
 
-		TEST_METHOD(Then)
+		TEST_F(VoidTest_co_return_Explicit, Then)
 		{
 			bool wasThenCalled = false;
 			CoReturnPromise().Then(
@@ -133,16 +130,16 @@ namespace TestJSLikeVoidPromise
 					wasThenCalled = true;
 				});
 
-			Assert::IsTrue(wasThenCalled);
+			EXPECT_TRUE(wasThenCalled);
 		}
 
-		TEST_METHOD(throw_Catch)
+		TEST_F(VoidTest_co_return_Explicit, throw_Catch)
 		{
 			bool wasExceptionThrown = false;
 
 			CoroutineThatThrows().Catch([&](std::exception_ptr eptr)
 				{
-					if (!eptr) Assert::Fail();
+					if (!eptr) FAIL();
 
 					try {
 						std::rethrow_exception(eptr);
@@ -153,13 +150,12 @@ namespace TestJSLikeVoidPromise
 					}
 				});
 
-			Assert::IsTrue(wasExceptionThrown);
+			EXPECT_TRUE(wasExceptionThrown);
 		}
-	};
+	}
 	//***************************************************************************************
-	TEST_CLASS(Test_co_return_Implicit)
-	{
-	private:
+	class VoidTest_co_return_Implicit : public testing::Test {
+	protected:
 		Promise<> CoReturnPromise() {
 			co_await suspend_never{};
 			// Implicit co_return
@@ -169,23 +165,23 @@ namespace TestJSLikeVoidPromise
 			co_await CoReturnPromise();
 			co_return true;
 		}
-
-	public:
-		TEST_METHOD(Co_await)
+	};
+	namespace {
+		TEST_F(VoidTest_co_return_Implicit, Co_await)
 		{
 			auto result = CoAwait();
 
-			Assert::IsTrue(result.isResolved());
-			Assert::IsTrue(result.value() == true);
+			EXPECT_TRUE(result.isResolved());
+			EXPECT_TRUE(result.value() == true);
 		}
 
-		TEST_METHOD(Test)
+		TEST_F(VoidTest_co_return_Implicit, Test)
 		{
 			auto p = CoReturnPromise();
-			Assert::IsTrue(p.isResolved());
+			EXPECT_TRUE(p.isResolved());
 		}
 
-		TEST_METHOD(Then)
+		TEST_F(VoidTest_co_return_Implicit, Then)
 		{
 			bool wasThenCalled = false;
 			CoReturnPromise().Then(
@@ -194,67 +190,63 @@ namespace TestJSLikeVoidPromise
 					wasThenCalled = true;
 				});
 
-			Assert::IsTrue(wasThenCalled);
+			EXPECT_TRUE(wasThenCalled);
 		}
-	};
+	}
 	//***************************************************************************************
-	TEST_CLASS(Test_constructors)
-	{
-	public:
-		TEST_METHOD(Assign)
+	namespace {
+		TEST(VoidTest_constructors, Assign)
 		{
 			Promise<> pa1;
 			Promise<> pa2 = pa1;
 
-			Assert::IsTrue(pa1.state() == pa2.state());
+			EXPECT_TRUE(pa1.state() == pa2.state());
 		}
 
-		TEST_METHOD(Copy)
+		TEST(VoidTest_constructors, Copy)
 		{
 			Promise<> pa1;
 			Promise<> pa2(pa1);
 
-			Assert::IsTrue(pa1.state() == pa2.state());
+			EXPECT_TRUE(pa1.state() == pa2.state());
 		}
 
-		TEST_METHOD(Default)
+		TEST(VoidTest_constructors, Default)
 		{
 			Promise<> p;
-			Assert::IsTrue(p.isResolved());
+			EXPECT_TRUE(p.isResolved());
 		}
 
-		TEST_METHOD(InitializerThatResolves)
+		TEST(VoidTest_constructors, InitializerThatResolves)
 		{
 			Promise<> p0(
 				[](auto state) {
 					state->resolve();
 				});
-			Assert::IsTrue(p0.isResolved());
+			EXPECT_TRUE(p0.isResolved());
 		}
 
-		TEST_METHOD(InitializerThatRejects)
+		TEST(VoidTest_constructors, InitializerThatRejects)
 		{
 			Promise<> p0(
 				[](auto state) {
 					state->reject(make_exception_ptr(out_of_range("invalid string position")));
 				});
-			Assert::IsTrue(p0.isRejected());
+			EXPECT_TRUE(p0.isRejected());
 		}
 
-		TEST_METHOD(InitializerThatThrows)
+		TEST(VoidTest_constructors, InitializerThatThrows)
 		{
 			Promise<> p0(
 				[](auto state) {
 					int i = std::string().at(1); // this generates an std::out_of_range
 				});
-			Assert::IsTrue(p0.isRejected());
+			EXPECT_TRUE(p0.isRejected());
 		}
-	};
+	}
 	//***************************************************************************************
-	TEST_CLASS(TestRejection)
-	{
-	public:
-		TEST_METHOD(Catch)
+	namespace {
+		TEST(VoidTestRejection, Catch)
 		{
 			auto [p0, p0state] = Promise<>::getUnresolvedPromiseAndState();
 
@@ -263,7 +255,7 @@ namespace TestJSLikeVoidPromise
 			bool wasExpectedExceptionThrown = false;
 			p0.Catch(
 				[&](auto ex) {
-					if (!ex) Assert::Fail();
+					if (!ex) FAIL();
 
 					try {
 						std::rethrow_exception(ex);
@@ -280,12 +272,12 @@ namespace TestJSLikeVoidPromise
 			p0state->reject(make_exception_ptr(out_of_range("invalid string position")));
 
 			// Verify the result
-			Assert::IsTrue(p0.isRejected());
-			Assert::AreEqual(1, nCatchCalls);
-			Assert::IsTrue(wasExpectedExceptionThrown);
+			EXPECT_TRUE(p0.isRejected());
+			EXPECT_EQ(1, nCatchCalls);
+			EXPECT_TRUE(wasExpectedExceptionThrown);
 		}
 
-		TEST_METHOD(Catch_Catch)
+		TEST(VoidTestRejection, Catch_Catch)
 		{
 			auto [p0, p0state] = Promise<>::getUnresolvedPromiseAndState();
 
@@ -296,7 +288,7 @@ namespace TestJSLikeVoidPromise
 			p0
 				.Catch(
 					[&](auto ex) {
-						if (!ex) Assert::Fail();
+						if (!ex) FAIL();
 
 						try {
 							std::rethrow_exception(ex);
@@ -310,7 +302,7 @@ namespace TestJSLikeVoidPromise
 					})
 				.Catch(
 					[&](auto ex) {
-						if (!ex) Assert::Fail();
+						if (!ex) FAIL();
 
 						try {
 							std::rethrow_exception(ex);
@@ -327,13 +319,13 @@ namespace TestJSLikeVoidPromise
 			p0state->reject(make_exception_ptr(out_of_range("invalid string position")));
 
 			// Verify the result
-			Assert::IsTrue(p0.isRejected());
-			Assert::AreEqual(2, nCatchCalls);
-			Assert::IsTrue(wasExpectedException1Thrown);
-			Assert::IsTrue(wasExpectedException2Thrown);
+			EXPECT_TRUE(p0.isRejected());
+			EXPECT_EQ(2, nCatchCalls);
+			EXPECT_TRUE(wasExpectedException1Thrown);
+			EXPECT_TRUE(wasExpectedException2Thrown);
 		}
 
-		TEST_METHOD(Catch_Then)
+		TEST(VoidTestRejection, Catch_Then)
 		{
 			auto [p0, p0state] = Promise<>::getUnresolvedPromiseAndState();
 
@@ -344,7 +336,7 @@ namespace TestJSLikeVoidPromise
 			p0
 				.Catch(
 					[&](auto ex) {
-						if (!ex) Assert::Fail();
+						if (!ex) FAIL();
 
 						try {
 							std::rethrow_exception(ex);
@@ -364,14 +356,14 @@ namespace TestJSLikeVoidPromise
 			p0state->reject(make_exception_ptr(out_of_range("invalid string position")));
 
 			// Verify the result
-			Assert::IsTrue(p0.isRejected());
-			Assert::IsFalse(p0.isResolved());
-			Assert::AreEqual(0, nThenCalls);
-			Assert::AreEqual(1, nCatchCalls);
-			Assert::IsTrue(wasExpectedExceptionThrown);
+			EXPECT_TRUE(p0.isRejected());
+			EXPECT_FALSE(p0.isResolved());
+			EXPECT_EQ(0, nThenCalls);
+			EXPECT_EQ(1, nCatchCalls);
+			EXPECT_TRUE(wasExpectedExceptionThrown);
 		}
 
-		TEST_METHOD(Then_Catch)
+		TEST(VoidTestRejection, Then_Catch)
 		{
 			auto [p0, p0state] = Promise<>::getUnresolvedPromiseAndState();
 
@@ -388,13 +380,13 @@ namespace TestJSLikeVoidPromise
 			p0state->reject(make_exception_ptr(out_of_range("invalid string position")));
 
 			// Verify the result
-			Assert::IsTrue(p0.isRejected());
-			Assert::IsFalse(p0.isResolved());
-			Assert::AreEqual(0, nThenCalls);
-			Assert::AreEqual(1, nCatchCalls);
+			EXPECT_TRUE(p0.isRejected());
+			EXPECT_FALSE(p0.isResolved());
+			EXPECT_EQ(0, nThenCalls);
+			EXPECT_EQ(1, nCatchCalls);
 		}
 
-		TEST_METHOD(ThenCatch)
+		TEST(VoidTestRejection, ThenCatch)
 		{
 			auto [p0, p0state] = Promise<>::getUnresolvedPromiseAndState();
 
@@ -412,13 +404,13 @@ namespace TestJSLikeVoidPromise
 			p0state->reject(make_exception_ptr(out_of_range("invalid string position")));
 
 			// Verify the result
-			Assert::IsTrue(p0.isRejected());
-			Assert::IsFalse(p0.isResolved());
-			Assert::AreEqual(0, nThenCalls);
-			Assert::AreEqual(1, nCatchCalls);
+			EXPECT_TRUE(p0.isRejected());
+			EXPECT_FALSE(p0.isResolved());
+			EXPECT_EQ(0, nThenCalls);
+			EXPECT_EQ(1, nCatchCalls);
 		}
 
-		TEST_METHOD(ThenCatch_Catch)
+		TEST(VoidTestRejection, ThenCatch_Catch)
 		{
 			auto [p0, p0state] = Promise<>::getUnresolvedPromiseAndState();
 
@@ -438,13 +430,13 @@ namespace TestJSLikeVoidPromise
 			p0state->reject(make_exception_ptr(out_of_range("invalid string position")));
 
 			// Verify the result
-			Assert::IsTrue(p0.isRejected());
-			Assert::IsFalse(p0.isResolved());
-			Assert::AreEqual(0, nThenCalls);
-			Assert::AreEqual(2, nCatchCalls);
+			EXPECT_TRUE(p0.isRejected());
+			EXPECT_FALSE(p0.isResolved());
+			EXPECT_EQ(0, nThenCalls);
+			EXPECT_EQ(2, nCatchCalls);
 		}
 
-		TEST_METHOD(ThenCatch_Then)
+		TEST(VoidTestRejection, ThenCatch_Then)
 		{
 			auto [p0, p0state] = Promise<>::getUnresolvedPromiseAndState();
 
@@ -464,17 +456,15 @@ namespace TestJSLikeVoidPromise
 			p0state->reject(make_exception_ptr(out_of_range("invalid string position")));
 
 			// Verify the result
-			Assert::IsTrue(p0.isRejected());
-			Assert::IsFalse(p0.isResolved());
-			Assert::AreEqual(0, nThenCalls);
-			Assert::AreEqual(1, nCatchCalls);
+			EXPECT_TRUE(p0.isRejected());
+			EXPECT_FALSE(p0.isResolved());
+			EXPECT_EQ(0, nThenCalls);
+			EXPECT_EQ(1, nCatchCalls);
 		}
-	};
+	}
 	//***************************************************************************************
-	TEST_CLASS(TestResolution)
-	{
-	public:
-		TEST_METHOD(Preresolved_Catch_Then)
+	namespace {
+		TEST(VoidTestResolution, Preresolved_Catch_Then)
 		{
 			Promise<> p1;                                              // preresolved
 
@@ -482,15 +472,15 @@ namespace TestJSLikeVoidPromise
 			int nCatchCalls = 0;
 			p1.Catch(
 				[&](auto ex) { nCatchCalls++; }).Then(
-				[&]() {
-					nThenCalls++;
-				});
+					[&]() {
+						nThenCalls++;
+					});
 
-			Assert::AreEqual(1, nThenCalls);
-			Assert::AreEqual(0, nCatchCalls);
+			EXPECT_EQ(1, nThenCalls);
+			EXPECT_EQ(0, nCatchCalls);
 		}
 
-		TEST_METHOD(Preresolved_Then)
+		TEST(VoidTestResolution, Preresolved_Then)
 		{
 			Promise<> p1;                                              // preresolved
 
@@ -501,11 +491,11 @@ namespace TestJSLikeVoidPromise
 					nThenCalls++;
 				});
 
-			Assert::AreEqual(1, nThenCalls);
-			Assert::AreEqual(0, nCatchCalls);
+			EXPECT_EQ(1, nThenCalls);
+			EXPECT_EQ(0, nCatchCalls);
 		}
 
-		TEST_METHOD(Preresolved_Then_Catch)
+		TEST(VoidTestResolution, Preresolved_Then_Catch)
 		{
 			Promise<> p1;                                              // preresolved
 
@@ -515,13 +505,13 @@ namespace TestJSLikeVoidPromise
 				[&]() {
 					nThenCalls++;
 				}).Catch(
-				[&](auto ex) { nCatchCalls++; });
+					[&](auto ex) { nCatchCalls++; });
 
-				Assert::AreEqual(1, nThenCalls);
-				Assert::AreEqual(0, nCatchCalls);
+				EXPECT_EQ(1, nThenCalls);
+				EXPECT_EQ(0, nCatchCalls);
 		}
 
-		TEST_METHOD(Preresolved_Then_Then)
+		TEST(VoidTestResolution, Preresolved_Then_Then)
 		{
 			Promise<> p1;                                              // preresolved
 
@@ -531,15 +521,15 @@ namespace TestJSLikeVoidPromise
 				[&]() {
 					nThenCalls++;
 				}).Then(
-				[&]() {
-					nThenCalls++;
-				});
+					[&]() {
+						nThenCalls++;
+					});
 
-				Assert::AreEqual(2, nThenCalls);
-				Assert::AreEqual(0, nCatchCalls);
+				EXPECT_EQ(2, nThenCalls);
+				EXPECT_EQ(0, nCatchCalls);
 		}
 
-		TEST_METHOD(Preresolved_ThenCatch)
+		TEST(VoidTestResolution, Preresolved_ThenCatch)
 		{
 			Promise<> p1;                                              // preresolved
 
@@ -551,11 +541,11 @@ namespace TestJSLikeVoidPromise
 				},
 				[&](auto ex) { nCatchCalls++; });
 
-			Assert::AreEqual(1, nThenCalls);
-			Assert::AreEqual(0, nCatchCalls);
+			EXPECT_EQ(1, nThenCalls);
+			EXPECT_EQ(0, nCatchCalls);
 		}
 
-		TEST_METHOD(Preresolved_ThenCatch_Then)
+		TEST(VoidTestResolution, Preresolved_ThenCatch_Then)
 		{
 			Promise<> p1;                                              // preresolved
 
@@ -566,15 +556,15 @@ namespace TestJSLikeVoidPromise
 					nThenCalls++;
 				},
 				[&](auto ex) { nCatchCalls++; }).Then(
-				[&]() {
-					nThenCalls++;
-				});
+					[&]() {
+						nThenCalls++;
+					});
 
-			Assert::AreEqual(2, nThenCalls);
-			Assert::AreEqual(0, nCatchCalls);
+			EXPECT_EQ(2, nThenCalls);
+			EXPECT_EQ(0, nCatchCalls);
 		}
 
-		TEST_METHOD(Unresolved_Catch_Then)
+		TEST(VoidTestResolution, Unresolved_Catch_Then)
 		{
 			auto [p0, p0state] = Promise<>::getUnresolvedPromiseAndState();  // resolved later
 
@@ -583,18 +573,18 @@ namespace TestJSLikeVoidPromise
 
 			p0.Catch(
 				[&](auto ex) { nCatchCalls++; }).Then(
-				[&]() {
-					nThenCalls++;
-				});
+					[&]() {
+						nThenCalls++;
+					});
 
-			Assert::AreEqual(0, nThenCalls);
-			Assert::AreEqual(0, nCatchCalls);
+			EXPECT_EQ(0, nThenCalls);
+			EXPECT_EQ(0, nCatchCalls);
 			p0state->resolve();  // Resolve
-			Assert::AreEqual(1, nThenCalls);
-			Assert::AreEqual(0, nCatchCalls);
+			EXPECT_EQ(1, nThenCalls);
+			EXPECT_EQ(0, nCatchCalls);
 		}
 
-		TEST_METHOD(Unresolved_Then)
+		TEST(VoidTestResolution, Unresolved_Then)
 		{
 			auto [p0, p0state] = Promise<>::getUnresolvedPromiseAndState();  // resolved later
 
@@ -606,14 +596,14 @@ namespace TestJSLikeVoidPromise
 					nThenCalls++;
 				});
 
-			Assert::AreEqual(0, nThenCalls);
-			Assert::AreEqual(0, nCatchCalls);
+			EXPECT_EQ(0, nThenCalls);
+			EXPECT_EQ(0, nCatchCalls);
 			p0state->resolve();  // Resolve
-			Assert::AreEqual(1, nThenCalls);
-			Assert::AreEqual(0, nCatchCalls);
+			EXPECT_EQ(1, nThenCalls);
+			EXPECT_EQ(0, nCatchCalls);
 		}
 
-		TEST_METHOD(Unresolved_Then_Catch)
+		TEST(VoidTestResolution, Unresolved_Then_Catch)
 		{
 			auto [p0, p0state] = Promise<>::getUnresolvedPromiseAndState();  // resolved later
 
@@ -624,18 +614,18 @@ namespace TestJSLikeVoidPromise
 				[&]() {
 					nThenCalls++;
 				}).Catch(
-				[&](auto ex) {
-					nCatchCalls++;
-				});
+					[&](auto ex) {
+						nCatchCalls++;
+					});
 
-				Assert::AreEqual(0, nThenCalls);
-				Assert::AreEqual(0, nCatchCalls);
+				EXPECT_EQ(0, nThenCalls);
+				EXPECT_EQ(0, nCatchCalls);
 				p0state->resolve();  // Resolve
-				Assert::AreEqual(1, nThenCalls);
-				Assert::AreEqual(0, nCatchCalls);
+				EXPECT_EQ(1, nThenCalls);
+				EXPECT_EQ(0, nCatchCalls);
 		}
 
-		TEST_METHOD(Unresolved_Then_Then)
+		TEST(VoidTestResolution, Unresolved_Then_Then)
 		{
 			auto [p0, p0state] = Promise<>::getUnresolvedPromiseAndState();  // resolved later
 
@@ -646,18 +636,18 @@ namespace TestJSLikeVoidPromise
 				[&]() {
 					nThenCalls++;
 				}).Then(
-				[&]() {
-					nThenCalls++;
-				});
+					[&]() {
+						nThenCalls++;
+					});
 
-				Assert::AreEqual(0, nThenCalls);
-				Assert::AreEqual(0, nCatchCalls);
+				EXPECT_EQ(0, nThenCalls);
+				EXPECT_EQ(0, nCatchCalls);
 				p0state->resolve();  // Resolve
-				Assert::AreEqual(2, nThenCalls);
-				Assert::AreEqual(0, nCatchCalls);
+				EXPECT_EQ(2, nThenCalls);
+				EXPECT_EQ(0, nCatchCalls);
 		}
 
-		TEST_METHOD(Unresolved_ThenCatch)
+		TEST(VoidTestResolution, Unresolved_ThenCatch)
 		{
 			auto [p0, p0state] = Promise<>::getUnresolvedPromiseAndState();  // resolved later
 
@@ -672,14 +662,14 @@ namespace TestJSLikeVoidPromise
 					nCatchCalls++;
 				});
 
-			Assert::AreEqual(0, nThenCalls);
-			Assert::AreEqual(0, nCatchCalls);
+			EXPECT_EQ(0, nThenCalls);
+			EXPECT_EQ(0, nCatchCalls);
 			p0state->resolve();  // Resolve
-			Assert::AreEqual(1, nThenCalls);
-			Assert::AreEqual(0, nCatchCalls);
+			EXPECT_EQ(1, nThenCalls);
+			EXPECT_EQ(0, nCatchCalls);
 		}
 
-		TEST_METHOD(Unresolved_ThenCatch_Then)
+		TEST(VoidTestResolution, Unresolved_ThenCatch_Then)
 		{
 			auto [p0, p0state] = Promise<>::getUnresolvedPromiseAndState();  // resolved later
 
@@ -693,16 +683,16 @@ namespace TestJSLikeVoidPromise
 				[&](auto ex) {
 					nCatchCalls++;
 				}).Then(
-				[&]() {
-					nThenCalls++;
-				});
+					[&]() {
+						nThenCalls++;
+					});
 
-			Assert::AreEqual(0, nThenCalls);
-			Assert::AreEqual(0, nCatchCalls);
-			p0state->resolve();  // Resolve
-			Assert::AreEqual(2, nThenCalls);
-			Assert::AreEqual(0, nCatchCalls);
+				EXPECT_EQ(0, nThenCalls);
+				EXPECT_EQ(0, nCatchCalls);
+				p0state->resolve();  // Resolve
+				EXPECT_EQ(2, nThenCalls);
+				EXPECT_EQ(0, nCatchCalls);
 		}
-	};
+	}
 	//***************************************************************************************
 }

@@ -1,4 +1,4 @@
-#include "CppUnitTest.h"
+#include "gtest/gtest.h"
 
 #include <coroutine>
 #include <functional>
@@ -8,22 +8,19 @@
 #include "../JSLikePromise.hpp"
 #include "TranscriptionCounter.hpp"
 
-using namespace Microsoft::VisualStudio::CppUnitTestFramework;
-
 using namespace std;
 using namespace JSLike;
 
 namespace TestJSLikeValuedPromise
 {
 	//***************************************************************************************
-	TEST_CLASS(Test_co_await)
-	{
-	private:
-		Promise<bool> myCoAwaitingCoroutine(Promise<int> &p) {
+	class ValuedTest_co_await : public testing::Test {
+	protected:
+		Promise<bool> myCoAwaitingCoroutine(Promise<int>& p) {
 
 			auto result = co_await p;
 
-			Assert::AreEqual(1, result);
+			EXPECT_EQ(1, result);
 
 			co_return true;
 		}
@@ -35,7 +32,7 @@ namespace TestJSLikeValuedPromise
 			co_return true;
 		}
 
-		Promise<bool> myCoAwaitingCoroutineThatCatches(Promise<int> &p) {
+		Promise<bool> myCoAwaitingCoroutineThatCatches(Promise<int>& p) {
 			try {
 				auto result = co_await p;
 			}
@@ -44,134 +41,132 @@ namespace TestJSLikeValuedPromise
 			}
 			co_return false;
 		}
-
-	public:
-		TEST_METHOD(Prereject_uncaught)
+	};
+	namespace {
+		TEST_F(ValuedTest_co_await, Prereject_uncaught)
 		{
 			auto [p1, p1state] = Promise<int>::getUnresolvedPromiseAndState();
 			// Prereject p1.
 			p1state->reject(make_exception_ptr(out_of_range("invalid string position")));
 
 			auto result = myCoAwaitingCoroutine(p1);
-			Assert::IsFalse(result.isResolved());
-			Assert::IsTrue(result.isRejected());
+			EXPECT_FALSE(result.isResolved());
+			EXPECT_TRUE(result.isRejected());
 		}
 
-		TEST_METHOD(Preresolved)
+		TEST_F(ValuedTest_co_await, Preresolved)
 		{
 			Promise<int> p1(1);
 
 			auto result = myCoAwaitingCoroutine(p1);
-			Assert::IsTrue(result.isResolved());
-			Assert::IsTrue(result.value() == true);
+			EXPECT_TRUE(result.isResolved());
+			EXPECT_TRUE(result.value() == true);
 		}
 
-		TEST_METHOD(Reject_try_catch)
+		TEST_F(ValuedTest_co_await, Reject_try_catch)
 		{
 			auto [p1, p1state] = Promise<int>::getUnresolvedPromiseAndState();
 
 			auto result = myCoAwaitingCoroutineThatCatches(p1);
 
-			Assert::IsFalse(result.isResolved());
+			EXPECT_FALSE(result.isResolved());
 
 			// Reject p1.  An exception should be thrown in the coroutine.
 			p1state->reject(make_exception_ptr(out_of_range("invalid string position")));
 
-			Assert::IsTrue(result.isResolved());
-			Assert::AreEqual(true, result.value());
+			EXPECT_TRUE(result.isResolved());
+			EXPECT_EQ(true, result.value());
 		}
 
-		TEST_METHOD(Reject_uncaught)
+		TEST_F(ValuedTest_co_await, Reject_uncaught)
 		{
 			auto [p1, p1state] = Promise<int>::getUnresolvedPromiseAndState();
 
 			auto result = myCoAwaitingCoroutine(p1);
 
-			Assert::IsFalse(result.isResolved());
-			Assert::IsFalse(result.isRejected());
+			EXPECT_FALSE(result.isResolved());
+			EXPECT_FALSE(result.isRejected());
 
 			// Reject p1.  An exception should be thrown in the coroutine.
 			p1state->reject(make_exception_ptr(out_of_range("invalid string position")));
 
-			Assert::IsFalse(result.isResolved());
-			Assert::IsTrue(result.isRejected());
+			EXPECT_FALSE(result.isResolved());
+			EXPECT_TRUE(result.isRejected());
 		}
 
-		TEST_METHOD(ResolvedLater)
+		TEST_F(ValuedTest_co_await, ResolvedLater)
 		{
 			auto [p0, p0state] = Promise<int>::getUnresolvedPromiseAndState();
 
 			auto result = myCoAwaitingCoroutine(p0);
 
-			Assert::IsFalse(result.isResolved());
+			EXPECT_FALSE(result.isResolved());
 			p0state->resolve(1);
-			Assert::IsTrue(result.isResolved());
-			Assert::IsTrue(result.value() == true);
+			EXPECT_TRUE(result.isResolved());
+			EXPECT_TRUE(result.value() == true);
 		}
 
-		TEST_METHOD(ResolvedLater_move)
+		TEST_F(ValuedTest_co_await, ResolvedLater_move)
 		{
 			auto [p0, p0state] = Promise<TranscriptionCounter>::getUnresolvedPromiseAndState();
 
 			auto result = myCoAwaitingCoroutineThatMoves(p0);
 
-			Assert::IsFalse(result.isResolved());
+			EXPECT_FALSE(result.isResolved());
 
 			// Construct a TranscriptionCounter, and use it to resolve the Promise.
 			int nMoveCtor = 0, nMoveAssign = 0, nCopyCtor = 0, nCopyAssign = 0;
 			TranscriptionCounter* obj = TranscriptionCounter::constructAndSetCounters("obj1", &nMoveCtor, &nMoveAssign, &nCopyCtor, &nCopyAssign);
 			p0state->resolve(move(*obj));  // Resolve
 
-			Assert::AreEqual(0, nCopyCtor);
-			Assert::AreEqual(0, nCopyAssign);
-			Assert::AreEqual(1, nMoveCtor);    // performed by resolve()
-			Assert::AreEqual(1, nMoveAssign);  // performed inside the coroutine
+			EXPECT_EQ(0, nCopyCtor);
+			EXPECT_EQ(0, nCopyAssign);
+			EXPECT_EQ(1, nMoveCtor);    // performed by resolve()
+			EXPECT_EQ(1, nMoveAssign);  // performed inside the coroutine
 
 
-			Assert::IsTrue(result.isResolved());
-			Assert::IsTrue(result.value() == true);
+			EXPECT_TRUE(result.isResolved());
+			EXPECT_TRUE(result.value() == true);
 		}
-	};
+	}
 	//***************************************************************************************
-	TEST_CLASS(Test_co_return_Value)
-	{
-	private:
+	class ValuedTest_co_return_Value : public testing::Test {
+	protected:
 		Promise<int> CoReturnPromise(int val) {
 			co_return val;
 		}
 
 		Promise<bool> CoAwait(int val) {
 			auto result = co_await CoReturnPromise(val);
-			Assert::AreEqual(result, val);
+			EXPECT_EQ(result, val);
 			co_return true;
 		}
-
-	public:
-		TEST_METHOD(Co_await)
+	};
+	namespace {
+		TEST_F(ValuedTest_co_return_Value, Co_await)
 		{
 			auto result = CoAwait(1);
 
-			Assert::IsTrue(result.isResolved());
-			Assert::IsTrue(result.value() == true);
+			EXPECT_TRUE(result.isResolved());
+			EXPECT_TRUE(result.value() == true);
 		}
 
-		TEST_METHOD(Then)
+		TEST_F(ValuedTest_co_return_Value, Then)
 		{
 			bool wasThenCalled = false;
 			CoReturnPromise(1).Then(
-				[&](int &result)
+				[&](int& result)
 				{
-					Assert::AreEqual(1, result);
+					EXPECT_EQ(1, result);
 					wasThenCalled = true;
 				});
 
-			Assert::IsTrue(wasThenCalled);
+			EXPECT_TRUE(wasThenCalled);
 		}
-	};
+	}
 	//***************************************************************************************
-	TEST_CLASS(Test_co_return_ValuedPromise)
-	{
-	private:
+	class ValuedTest_co_return_ValuedPromise : public testing::Test {
+	protected:
 		Promise<int> CoReturnPromise(Promise<int>& p) {
 			co_return p;
 		}
@@ -185,24 +180,24 @@ namespace TestJSLikeValuedPromise
 			char c = std::string().at(1); // this throws a std::out_of_range
 			co_return 1;
 		}
-
-	public:
-		TEST_METHOD(Preresolved_Then)
+	};
+	namespace {
+		TEST_F(ValuedTest_co_return_ValuedPromise, Preresolved_Then)
 		{
 			auto p1 = Promise<int>(1);
 
 			bool wasThenCalled = false;
 			CoReturnPromise(p1).Then(
-				[&](int &result)
+				[&](int& result)
 				{
-					Assert::AreEqual(1, result);
+					EXPECT_EQ(1, result);
 					wasThenCalled = true;
 				});
 
-			Assert::IsTrue(wasThenCalled);
+			EXPECT_TRUE(wasThenCalled);
 		}
 
-		TEST_METHOD(Reject_Catch)
+		TEST_F(ValuedTest_co_return_ValuedPromise, Reject_Catch)
 		{
 			auto [p0, p0state] = Promise<int>::getUnresolvedPromiseAndState();
 
@@ -210,9 +205,9 @@ namespace TestJSLikeValuedPromise
 			int nCatchCalls = 0;
 			bool wasExceptionThrown = false;
 			Promise<int> pa = CoReturnPromise(p0);
-			pa.Then([&](int &result) { nThenCalls++; });
+			pa.Then([&](int& result) { nThenCalls++; });
 			pa.Catch([&](auto ex) {
-				if (!ex) Assert::Fail();
+				if (!ex) FAIL();
 
 				try {
 					std::rethrow_exception(ex);
@@ -225,65 +220,65 @@ namespace TestJSLikeValuedPromise
 				nCatchCalls++;
 				});
 
-			Assert::IsFalse(pa.isRejected());
+			EXPECT_FALSE(pa.isRejected());
 
 			p0state->reject(make_exception_ptr(out_of_range("invalid string position")));
 
-			Assert::IsTrue(pa.isRejected());
-			Assert::IsFalse(pa.isResolved());
-			Assert::AreEqual(0, nThenCalls);
-			Assert::AreEqual(1, nCatchCalls);
-			Assert::IsTrue(wasExceptionThrown);
+			EXPECT_TRUE(pa.isRejected());
+			EXPECT_FALSE(pa.isResolved());
+			EXPECT_EQ(0, nThenCalls);
+			EXPECT_EQ(1, nCatchCalls);
+			EXPECT_TRUE(wasExceptionThrown);
 		}
 
-		TEST_METHOD(ResolvedLater)
+		TEST_F(ValuedTest_co_return_ValuedPromise, ResolvedLater)
 		{
 			auto [p0, p0state] = Promise<int>::getUnresolvedPromiseAndState();
 
 			bool wasThenCalled = false;
 			auto p = CoReturnPromise(p0);
 
-			Assert::IsFalse(p.isResolved());
+			EXPECT_FALSE(p.isResolved());
 			p0state->resolve(1);
-			Assert::IsTrue(p.isResolved());
-			Assert::AreEqual(1, p.value());
+			EXPECT_TRUE(p.isResolved());
+			EXPECT_EQ(1, p.value());
 		}
 
-		TEST_METHOD(ResolvedLater_co_await)
+		TEST_F(ValuedTest_co_return_ValuedPromise, ResolvedLater_co_await)
 		{
 			auto [p0, p0state] = Promise<int>::getUnresolvedPromiseAndState();
 
 			auto result = CoAwait(p0);
 
-			Assert::IsFalse(result.isResolved());
+			EXPECT_FALSE(result.isResolved());
 			p0state->resolve(1);
-			Assert::IsTrue(result.isResolved());
-			Assert::IsTrue(result.value() == true);
+			EXPECT_TRUE(result.isResolved());
+			EXPECT_TRUE(result.value() == true);
 		}
 
-		TEST_METHOD(ResolvedLater_Then)
+		TEST_F(ValuedTest_co_return_ValuedPromise, ResolvedLater_Then)
 		{
 			auto [p0, p0state] = Promise<int>::getUnresolvedPromiseAndState();
 
 			bool wasThenCalled = false;
-			CoReturnPromise(p0).Then([&](int &result)
+			CoReturnPromise(p0).Then([&](int& result)
 				{
-					Assert::AreEqual(1, result);
+					EXPECT_EQ(1, result);
 					wasThenCalled = true;
 				});
 
-			Assert::IsFalse(wasThenCalled);
+			EXPECT_FALSE(wasThenCalled);
 			p0state->resolve(1);
-			Assert::IsTrue(wasThenCalled);
+			EXPECT_TRUE(wasThenCalled);
 		}
 
-		TEST_METHOD(throw_Catch)
+		TEST_F(ValuedTest_co_return_ValuedPromise, throw_Catch)
 		{
 			bool wasExceptionThrown = false;
 
 			CoroutineThatThrows().Catch([&](std::exception_ptr eptr)
 				{
-					if (!eptr) Assert::Fail();
+					if (!eptr) FAIL();
 
 					try {
 						std::rethrow_exception(eptr);
@@ -294,69 +289,65 @@ namespace TestJSLikeValuedPromise
 					}
 				});
 
-			Assert::IsTrue(wasExceptionThrown);
+			EXPECT_TRUE(wasExceptionThrown);
 		}
-	};
+	}
 	//***************************************************************************************
-	TEST_CLASS(Test_constructors)
-	{
-	public:
-		TEST_METHOD(Assign)
+	namespace {
+		TEST(ValuedTest_constructors, Assign)
 		{
 			Promise<int> pa1(1);
 			Promise<int> pa2 = pa1;
 
-			Assert::IsTrue(pa1.state() == pa2.state());
+			EXPECT_TRUE(pa1.state() == pa2.state());
 		}
 
-		TEST_METHOD(Copy)
+		TEST(ValuedTest_constructors, Copy)
 		{
 			Promise<int> pa1(1);
 			Promise<int> pa2(pa1);
 
-			Assert::IsTrue(pa1.state() == pa2.state());
+			EXPECT_TRUE(pa1.state() == pa2.state());
 		}
 
-		TEST_METHOD(InitializerThatResolves)
+		TEST(ValuedTest_constructors, InitializerThatResolves)
 		{
 			Promise<int> p0(
 				[](auto state) {
 					state->resolve(1);
 				});
-			Assert::IsTrue(p0.isResolved());
-			Assert::IsTrue(p0.value() == 1);
+			EXPECT_TRUE(p0.isResolved());
+			EXPECT_TRUE(p0.value() == 1);
 		}
 
-		TEST_METHOD(InitializerThatRejects)
+		TEST(ValuedTest_constructors, InitializerThatRejects)
 		{
 			Promise<int> p0(
 				[](auto state) {
 					state->reject(make_exception_ptr(out_of_range("invalid string position")));
 				});
-			Assert::IsTrue(p0.isRejected());
+			EXPECT_TRUE(p0.isRejected());
 		}
 
-		TEST_METHOD(InitializerThatThrows)
+		TEST(ValuedTest_constructors, InitializerThatThrows)
 		{
 			Promise<int> p0(
 				[](auto state) {
 					int i = std::string().at(1); // this generates an std::out_of_range
 				});
-			Assert::IsTrue(p0.isRejected());
+			EXPECT_TRUE(p0.isRejected());
 		}
 
-		TEST_METHOD(WithValue)
+		TEST(ValuedTest_constructors, WithValue)
 		{
 			Promise<int> p(1);
-			Assert::IsTrue(p.isResolved());
-			Assert::IsTrue(p.value() == 1);
+			EXPECT_TRUE(p.isResolved());
+			EXPECT_TRUE(p.value() == 1);
 		}
-	};
+	}
 	//***************************************************************************************
-	TEST_CLASS(TestRejection)
-	{
-	public:
-		TEST_METHOD(Catch)
+	namespace {
+		TEST(ValuedTestRejection, Catch)
 		{
 			auto [p0, p0state] = Promise<bool>::getUnresolvedPromiseAndState();
 
@@ -368,11 +359,11 @@ namespace TestJSLikeValuedPromise
 			p0state->reject(make_exception_ptr(out_of_range("invalid string position")));
 
 			// Verify the result
-			Assert::IsTrue(p0.isRejected());
-			Assert::AreEqual(1, nCatchCalls);
+			EXPECT_TRUE(p0.isRejected());
+			EXPECT_EQ(1, nCatchCalls);
 		}
 
-		TEST_METHOD(Catch_Catch)
+		TEST(ValuedTestRejection, Catch_Catch)
 		{
 			auto [p0, p0state] = Promise<bool>::getUnresolvedPromiseAndState();
 
@@ -386,11 +377,11 @@ namespace TestJSLikeValuedPromise
 			p0state->reject(make_exception_ptr(out_of_range("invalid string position")));
 
 			// Verify the result
-			Assert::IsTrue(p0.isRejected());
-			Assert::AreEqual(2, nCatchCalls);
+			EXPECT_TRUE(p0.isRejected());
+			EXPECT_EQ(2, nCatchCalls);
 		}
 
-		TEST_METHOD(Catch_Then)
+		TEST(ValuedTestRejection, Catch_Then)
 		{
 			auto [p0, p0state] = Promise<bool>::getUnresolvedPromiseAndState();
 
@@ -399,7 +390,7 @@ namespace TestJSLikeValuedPromise
 			int nCatchCalls = 0;
 			p0
 				.Catch([&](auto ex) { nCatchCalls++; })
-				.Then([&](bool &result) { nThenCalls++; });
+				.Then([&](bool& result) { nThenCalls++; });
 
 			// Reject p0.  The "Catch" Lambda should be called.
 			p0state->reject(make_exception_ptr(out_of_range("invalid string position")));
@@ -407,13 +398,13 @@ namespace TestJSLikeValuedPromise
 			p0state->reject(make_exception_ptr(out_of_range("invalid string position")));
 
 			// Verify the result
-			Assert::IsTrue(p0.isRejected());
-			Assert::IsFalse(p0.isResolved());
-			Assert::AreEqual(0, nThenCalls);
-			Assert::AreEqual(1, nCatchCalls);
+			EXPECT_TRUE(p0.isRejected());
+			EXPECT_FALSE(p0.isResolved());
+			EXPECT_EQ(0, nThenCalls);
+			EXPECT_EQ(1, nCatchCalls);
 		}
 
-		TEST_METHOD(Then_Catch)
+		TEST(ValuedTestRejection, Then_Catch)
 		{
 			auto [p0, p0state] = Promise<bool>::getUnresolvedPromiseAndState();
 
@@ -421,7 +412,7 @@ namespace TestJSLikeValuedPromise
 			int nThenCalls = 0;
 			int nCatchCalls = 0;
 			p0
-				.Then([&](bool &result) { nThenCalls++; })
+				.Then([&](bool& result) { nThenCalls++; })
 				.Catch([&](auto ex) { nCatchCalls++; });
 
 			// Reject p0.  The "Catch" Lambda should be called.
@@ -430,13 +421,13 @@ namespace TestJSLikeValuedPromise
 			p0state->reject(make_exception_ptr(out_of_range("invalid string position")));
 
 			// Verify the result
-			Assert::IsTrue(p0.isRejected());
-			Assert::IsFalse(p0.isResolved());
-			Assert::AreEqual(0, nThenCalls);
-			Assert::AreEqual(1, nCatchCalls);
+			EXPECT_TRUE(p0.isRejected());
+			EXPECT_FALSE(p0.isResolved());
+			EXPECT_EQ(0, nThenCalls);
+			EXPECT_EQ(1, nCatchCalls);
 		}
 
-		TEST_METHOD(ThenCatch)
+		TEST(ValuedTestRejection, ThenCatch)
 		{
 			auto [p0, p0state] = Promise<bool>::getUnresolvedPromiseAndState();
 
@@ -445,7 +436,7 @@ namespace TestJSLikeValuedPromise
 			int nCatchCalls = 0;
 			p0
 				.Then(
-					[&](bool &result) { nThenCalls++; },
+					[&](bool& result) { nThenCalls++; },
 					[&](auto ex) { nCatchCalls++; });
 
 			// Reject p0.  The "Catch" Lambda should be called.
@@ -454,13 +445,13 @@ namespace TestJSLikeValuedPromise
 			p0state->reject(make_exception_ptr(out_of_range("invalid string position")));
 
 			// Verify the result
-			Assert::IsTrue(p0.isRejected());
-			Assert::IsFalse(p0.isResolved());
-			Assert::AreEqual(0, nThenCalls);
-			Assert::AreEqual(1, nCatchCalls);
+			EXPECT_TRUE(p0.isRejected());
+			EXPECT_FALSE(p0.isResolved());
+			EXPECT_EQ(0, nThenCalls);
+			EXPECT_EQ(1, nCatchCalls);
 		}
 
-		TEST_METHOD(ThenCatch_Catch)
+		TEST(ValuedTestRejection, ThenCatch_Catch)
 		{
 			auto [p0, p0state] = Promise<bool>::getUnresolvedPromiseAndState();
 
@@ -469,7 +460,7 @@ namespace TestJSLikeValuedPromise
 			int nCatchCalls = 0;
 			p0
 				.Then(
-					[&](bool &result) { nThenCalls++; },
+					[&](bool& result) { nThenCalls++; },
 					[&](auto ex) { nCatchCalls++; })
 				.Catch(
 					[&](auto ex) { nCatchCalls++; });
@@ -480,13 +471,13 @@ namespace TestJSLikeValuedPromise
 			p0state->reject(make_exception_ptr(out_of_range("invalid string position")));
 
 			// Verify the result
-			Assert::IsTrue(p0.isRejected());
-			Assert::IsFalse(p0.isResolved());
-			Assert::AreEqual(0, nThenCalls);
-			Assert::AreEqual(2, nCatchCalls);
+			EXPECT_TRUE(p0.isRejected());
+			EXPECT_FALSE(p0.isResolved());
+			EXPECT_EQ(0, nThenCalls);
+			EXPECT_EQ(2, nCatchCalls);
 		}
 
-		TEST_METHOD(ThenCatch_Then)
+		TEST(ValuedTestRejection, ThenCatch_Then)
 		{
 			auto [p0, p0state] = Promise<bool>::getUnresolvedPromiseAndState();
 
@@ -495,10 +486,10 @@ namespace TestJSLikeValuedPromise
 			int nCatchCalls = 0;
 			p0
 				.Then(
-					[&](bool &result) { nThenCalls++; },
+					[&](bool& result) { nThenCalls++; },
 					[&](auto ex) { nCatchCalls++; })
 				.Then(
-					[&](bool&result) { nThenCalls++; });
+					[&](bool& result) { nThenCalls++; });
 
 			// Reject p0.  The "Catch" Lambda should be called.
 			p0state->reject(make_exception_ptr(out_of_range("invalid string position")));
@@ -506,17 +497,15 @@ namespace TestJSLikeValuedPromise
 			p0state->reject(make_exception_ptr(out_of_range("invalid string position")));
 
 			// Verify the result
-			Assert::IsTrue(p0.isRejected());
-			Assert::IsFalse(p0.isResolved());
-			Assert::AreEqual(0, nThenCalls);
-			Assert::AreEqual(1, nCatchCalls);
+			EXPECT_TRUE(p0.isRejected());
+			EXPECT_FALSE(p0.isResolved());
+			EXPECT_EQ(0, nThenCalls);
+			EXPECT_EQ(1, nCatchCalls);
 		}
-	};
+	}
 	//***************************************************************************************
-	TEST_CLASS(TestResolution)
-	{
-	public:
-		TEST_METHOD(PostresolvedCopy_ThenCatchMove)
+	namespace {
+		TEST(ValuedTestResolution, PostresolvedCopy_ThenCatchMove)
 		{
 			auto [p0, p0state] = Promise<TranscriptionCounter>::getUnresolvedPromiseAndState();  // resolved later
 
@@ -533,24 +522,24 @@ namespace TestJSLikeValuedPromise
 					nCatchCalls++;
 				});
 
-			Assert::AreEqual(0, nThenCalls);
-			Assert::AreEqual(0, nCatchCalls);
+			EXPECT_EQ(0, nThenCalls);
+			EXPECT_EQ(0, nCatchCalls);
 
 			// Construct a TranscriptionCounter, and use it to resolve the Promise.
 			int nMoveCtor = 0, nMoveAssign = 0, nCopyCtor = 0, nCopyAssign = 0;
 			TranscriptionCounter* obj = TranscriptionCounter::constructAndSetCounters("obj1", &nMoveCtor, &nMoveAssign, &nCopyCtor, &nCopyAssign);
 			p0state->resolve(*obj);             // This should invoke the copy assignment operator
 
-			Assert::AreEqual(0, nMoveCtor);
-			Assert::AreEqual(1, nMoveAssign);  // performed inside the Then Lambda above
-			Assert::AreEqual(1, nCopyCtor);    // performed by resolve(T&)
-			Assert::AreEqual(0, nCopyAssign);
+			EXPECT_EQ(0, nMoveCtor);
+			EXPECT_EQ(1, nMoveAssign);  // performed inside the Then Lambda above
+			EXPECT_EQ(1, nCopyCtor);    // performed by resolve(T&)
+			EXPECT_EQ(0, nCopyAssign);
 
-			Assert::AreEqual(1, nThenCalls);
-			Assert::AreEqual(0, nCatchCalls);
+			EXPECT_EQ(1, nThenCalls);
+			EXPECT_EQ(0, nCatchCalls);
 		}
 
-		TEST_METHOD(PostresolvedCopy_ThenMove)
+		TEST(ValuedTestResolution, PostresolvedCopy_ThenMove)
 		{
 			auto [p0, p0state] = Promise<TranscriptionCounter>::getUnresolvedPromiseAndState();  // resolved later
 
@@ -564,24 +553,24 @@ namespace TestJSLikeValuedPromise
 					nThenCalls++;
 				});
 
-			Assert::AreEqual(0, nThenCalls);
-			Assert::AreEqual(0, nCatchCalls);
+			EXPECT_EQ(0, nThenCalls);
+			EXPECT_EQ(0, nCatchCalls);
 
 			// Construct a TranscriptionCounter, and use it to resolve the Promise.
 			int nMoveCtor = 0, nMoveAssign = 0, nCopyCtor = 0, nCopyAssign = 0;
 			TranscriptionCounter* obj = TranscriptionCounter::constructAndSetCounters("obj1", &nMoveCtor, &nMoveAssign, &nCopyCtor, &nCopyAssign);
 			p0state->resolve(*obj);  // This should invoke the move assignment operator
 
-			Assert::AreEqual(0, nMoveCtor);
-			Assert::AreEqual(1, nMoveAssign);  // performed inside the Then Lambda above
-			Assert::AreEqual(1, nCopyCtor);    // performed by resolve(T&)
-			Assert::AreEqual(0, nCopyAssign);
+			EXPECT_EQ(0, nMoveCtor);
+			EXPECT_EQ(1, nMoveAssign);  // performed inside the Then Lambda above
+			EXPECT_EQ(1, nCopyCtor);    // performed by resolve(T&)
+			EXPECT_EQ(0, nCopyAssign);
 
-			Assert::AreEqual(1, nThenCalls);
-			Assert::AreEqual(0, nCatchCalls);
+			EXPECT_EQ(1, nThenCalls);
+			EXPECT_EQ(0, nCatchCalls);
 		}
 
-		TEST_METHOD(PostresolvedLiteral_Catch_Then)
+		TEST(ValuedTestResolution, PostresolvedLiteral_Catch_Then)
 		{
 			auto [p0, p0state] = Promise<int>::getUnresolvedPromiseAndState();  // resolved later
 
@@ -591,18 +580,18 @@ namespace TestJSLikeValuedPromise
 			p0.Catch(
 				[&](auto ex) { nCatchCalls++; }).Then(
 					[&](int& result) {
-						Assert::AreEqual(1, result);
+						EXPECT_EQ(1, result);
 						nThenCalls++;
 					});
 
-			Assert::AreEqual(0, nThenCalls);
-			Assert::AreEqual(0, nCatchCalls);
+			EXPECT_EQ(0, nThenCalls);
+			EXPECT_EQ(0, nCatchCalls);
 			p0state->resolve(1);  // Resolve
-			Assert::AreEqual(1, nThenCalls);
-			Assert::AreEqual(0, nCatchCalls);
+			EXPECT_EQ(1, nThenCalls);
+			EXPECT_EQ(0, nCatchCalls);
 		}
 
-		TEST_METHOD(PostresolvedLiteral_Then)
+		TEST(ValuedTestResolution, PostresolvedLiteral_Then)
 		{
 			auto [p0, p0state] = Promise<int>::getUnresolvedPromiseAndState();  // resolved later
 
@@ -611,18 +600,18 @@ namespace TestJSLikeValuedPromise
 
 			p0.Then(
 				[&](int& result) {
-					Assert::AreEqual(1, result);
+					EXPECT_EQ(1, result);
 					nThenCalls++;
 				});
 
-			Assert::AreEqual(0, nThenCalls);
-			Assert::AreEqual(0, nCatchCalls);
+			EXPECT_EQ(0, nThenCalls);
+			EXPECT_EQ(0, nCatchCalls);
 			p0state->resolve(1);  // Resolve
-			Assert::AreEqual(1, nThenCalls);
-			Assert::AreEqual(0, nCatchCalls);
+			EXPECT_EQ(1, nThenCalls);
+			EXPECT_EQ(0, nCatchCalls);
 		}
 
-		TEST_METHOD(PostresolvedLiteral_Then_Catch)
+		TEST(ValuedTestResolution, PostresolvedLiteral_Then_Catch)
 		{
 			auto [p0, p0state] = Promise<int>::getUnresolvedPromiseAndState();  // resolved later
 
@@ -631,21 +620,21 @@ namespace TestJSLikeValuedPromise
 
 			p0.Then(
 				[&](int& result) {
-					Assert::AreEqual(1, result);
+					EXPECT_EQ(1, result);
 					nThenCalls++;
 				}).Catch(
 					[&](auto ex) {
 						nCatchCalls++;
 					});
 
-				Assert::AreEqual(0, nThenCalls);
-				Assert::AreEqual(0, nCatchCalls);
+				EXPECT_EQ(0, nThenCalls);
+				EXPECT_EQ(0, nCatchCalls);
 				p0state->resolve(1);  // Resolve
-				Assert::AreEqual(1, nThenCalls);
-				Assert::AreEqual(0, nCatchCalls);
+				EXPECT_EQ(1, nThenCalls);
+				EXPECT_EQ(0, nCatchCalls);
 		}
 
-		TEST_METHOD(PostresolvedLiteral_Then_Then)
+		TEST(ValuedTestResolution, PostresolvedLiteral_Then_Then)
 		{
 			auto [p0, p0state] = Promise<int>::getUnresolvedPromiseAndState();  // resolved later
 
@@ -654,22 +643,22 @@ namespace TestJSLikeValuedPromise
 
 			p0.Then(
 				[&](int& result) {
-					Assert::AreEqual(1, result);
+					EXPECT_EQ(1, result);
 					nThenCalls++;
 				}).Then(
 					[&](int& result) {
-						Assert::AreEqual(1, result);
+						EXPECT_EQ(1, result);
 						nThenCalls++;
 					});
 
-				Assert::AreEqual(0, nThenCalls);
-				Assert::AreEqual(0, nCatchCalls);
+				EXPECT_EQ(0, nThenCalls);
+				EXPECT_EQ(0, nCatchCalls);
 				p0state->resolve(1);  // Resolve
-				Assert::AreEqual(2, nThenCalls);
-				Assert::AreEqual(0, nCatchCalls);
+				EXPECT_EQ(2, nThenCalls);
+				EXPECT_EQ(0, nCatchCalls);
 		}
 
-		TEST_METHOD(PostresolvedLiteral_ThenCatch)
+		TEST(ValuedTestResolution, PostresolvedLiteral_ThenCatch)
 		{
 			auto [p0, p0state] = Promise<int>::getUnresolvedPromiseAndState();  // resolved later
 
@@ -678,21 +667,21 @@ namespace TestJSLikeValuedPromise
 
 			p0.Then(
 				[&](int& result) {
-					Assert::AreEqual(1, result);
+					EXPECT_EQ(1, result);
 					nThenCalls++;
 				},
 				[&](auto ex) {
 					nCatchCalls++;
 				});
 
-			Assert::AreEqual(0, nThenCalls);
-			Assert::AreEqual(0, nCatchCalls);
+			EXPECT_EQ(0, nThenCalls);
+			EXPECT_EQ(0, nCatchCalls);
 			p0state->resolve(1);  // Resolve
-			Assert::AreEqual(1, nThenCalls);
-			Assert::AreEqual(0, nCatchCalls);
+			EXPECT_EQ(1, nThenCalls);
+			EXPECT_EQ(0, nCatchCalls);
 		}
 
-		TEST_METHOD(PostresolvedLiteral_ThenCatch_Then)
+		TEST(ValuedTestResolution, PostresolvedLiteral_ThenCatch_Then)
 		{
 			auto [p0, p0state] = Promise<int>::getUnresolvedPromiseAndState();  // resolved later
 
@@ -701,25 +690,25 @@ namespace TestJSLikeValuedPromise
 
 			p0.Then(
 				[&](int& result) {
-					Assert::AreEqual(1, result);
+					EXPECT_EQ(1, result);
 					nThenCalls++;
 				},
 				[&](auto ex) {
 					nCatchCalls++;
 				}).Then(
 					[&](int& result) {
-						Assert::AreEqual(1, result);
+						EXPECT_EQ(1, result);
 						nThenCalls++;
 					});
 
-				Assert::AreEqual(0, nThenCalls);
-				Assert::AreEqual(0, nCatchCalls);
+				EXPECT_EQ(0, nThenCalls);
+				EXPECT_EQ(0, nCatchCalls);
 				p0state->resolve(1);  // Resolve
-				Assert::AreEqual(2, nThenCalls);
-				Assert::AreEqual(0, nCatchCalls);
+				EXPECT_EQ(2, nThenCalls);
+				EXPECT_EQ(0, nCatchCalls);
 		}
 
-		TEST_METHOD(PostresolvedMove_ThenCatchMove)
+		TEST(ValuedTestResolution, PostresolvedMove_ThenCatchMove)
 		{
 			auto [p0, p0state] = Promise<TranscriptionCounter>::getUnresolvedPromiseAndState();  // resolved later
 
@@ -736,24 +725,24 @@ namespace TestJSLikeValuedPromise
 					nCatchCalls++;
 				});
 
-			Assert::AreEqual(0, nThenCalls);
-			Assert::AreEqual(0, nCatchCalls);
+			EXPECT_EQ(0, nThenCalls);
+			EXPECT_EQ(0, nCatchCalls);
 
 			// Construct a TranscriptionCounter, and use it to resolve the Promise.
 			int nMoveCtor = 0, nMoveAssign = 0, nCopyCtor = 0, nCopyAssign = 0;
 			TranscriptionCounter* obj = TranscriptionCounter::constructAndSetCounters("obj1", &nMoveCtor, &nMoveAssign, &nCopyCtor, &nCopyAssign);
 			p0state->resolve(move(*obj));      // This should invoke the move assignment operator
 
-			Assert::AreEqual(1, nMoveCtor);    // performed by resolve(T&&)
-			Assert::AreEqual(1, nMoveAssign);  // performed inside the Then Lambda above
-			Assert::AreEqual(0, nCopyCtor);
-			Assert::AreEqual(0, nCopyAssign);
+			EXPECT_EQ(1, nMoveCtor);    // performed by resolve(T&&)
+			EXPECT_EQ(1, nMoveAssign);  // performed inside the Then Lambda above
+			EXPECT_EQ(0, nCopyCtor);
+			EXPECT_EQ(0, nCopyAssign);
 
-			Assert::AreEqual(1, nThenCalls);
-			Assert::AreEqual(0, nCatchCalls);
+			EXPECT_EQ(1, nThenCalls);
+			EXPECT_EQ(0, nCatchCalls);
 		}
 
-		TEST_METHOD(PostresolvedMove_ThenMove)
+		TEST(ValuedTestResolution, PostresolvedMove_ThenMove)
 		{
 			auto [p0, p0state] = Promise<TranscriptionCounter>::getUnresolvedPromiseAndState();  // resolved later
 
@@ -761,30 +750,30 @@ namespace TestJSLikeValuedPromise
 			int nCatchCalls = 0;
 
 			p0.Then(
-				[&](TranscriptionCounter & result) {
+				[&](TranscriptionCounter& result) {
 					TranscriptionCounter r; // This should invoke the default constructor
 					r = move(result);       // This should invoke the move assignment operator
 					nThenCalls++;
 				});
 
-			Assert::AreEqual(0, nThenCalls);
-			Assert::AreEqual(0, nCatchCalls);
+			EXPECT_EQ(0, nThenCalls);
+			EXPECT_EQ(0, nCatchCalls);
 
 			// Construct a TranscriptionCounter, and use it to resolve the Promise.
 			int nMoveCtor = 0, nMoveAssign = 0, nCopyCtor = 0, nCopyAssign = 0;
-			TranscriptionCounter *obj = TranscriptionCounter::constructAndSetCounters("obj1", &nMoveCtor, &nMoveAssign, &nCopyCtor, &nCopyAssign);
+			TranscriptionCounter* obj = TranscriptionCounter::constructAndSetCounters("obj1", &nMoveCtor, &nMoveAssign, &nCopyCtor, &nCopyAssign);
 			p0state->resolve(move(*obj));  // This should invoke the move assignment operator
 
-			Assert::AreEqual(1, nMoveCtor);    // performed by resolve(T&&)
-			Assert::AreEqual(1, nMoveAssign);  // performed inside the Then Lambda above
-			Assert::AreEqual(0, nCopyCtor);
-			Assert::AreEqual(0, nCopyAssign);
+			EXPECT_EQ(1, nMoveCtor);    // performed by resolve(T&&)
+			EXPECT_EQ(1, nMoveAssign);  // performed inside the Then Lambda above
+			EXPECT_EQ(0, nCopyCtor);
+			EXPECT_EQ(0, nCopyAssign);
 
-			Assert::AreEqual(1, nThenCalls);
-			Assert::AreEqual(0, nCatchCalls);
+			EXPECT_EQ(1, nThenCalls);
+			EXPECT_EQ(0, nCatchCalls);
 		}
 
-		TEST_METHOD(PreresolvedCopy_Then)
+		TEST(ValuedTestResolution, PreresolvedCopy_Then)
 		{
 			// Construct a TranscriptionCounter, and use it to resolve the Promise.
 			int nMoveCtor = 0, nMoveAssign = 0, nCopyCtor = 0, nCopyAssign = 0;
@@ -798,16 +787,16 @@ namespace TestJSLikeValuedPromise
 					nThenCalls++;
 				});
 
-			Assert::AreEqual(1, nThenCalls);
-			Assert::AreEqual(0, nCatchCalls);
+			EXPECT_EQ(1, nThenCalls);
+			EXPECT_EQ(0, nCatchCalls);
 
-			Assert::AreEqual(0, nMoveCtor);
-			Assert::AreEqual(0, nMoveAssign);
-			Assert::AreEqual(1, nCopyCtor);    // performed by Promise(T &)
-			Assert::AreEqual(0, nCopyAssign);
+			EXPECT_EQ(0, nMoveCtor);
+			EXPECT_EQ(0, nMoveAssign);
+			EXPECT_EQ(1, nCopyCtor);    // performed by Promise(T &)
+			EXPECT_EQ(0, nCopyAssign);
 		}
 
-		TEST_METHOD(PreresolvedLiteral_Catch_Then)
+		TEST(ValuedTestResolution, PreresolvedLiteral_Catch_Then)
 		{
 			Promise<int> p1(1);                                              // preresolved
 
@@ -815,107 +804,107 @@ namespace TestJSLikeValuedPromise
 			int nCatchCalls = 0;
 			p1.Catch(
 				[&](auto ex) { nCatchCalls++; }).Then(
-				[&](int &result) {
-					Assert::AreEqual(1, result);
-					nThenCalls++;
-				});
+					[&](int& result) {
+						EXPECT_EQ(1, result);
+						nThenCalls++;
+					});
 
-			Assert::AreEqual(1, nThenCalls);
-			Assert::AreEqual(0, nCatchCalls);
+			EXPECT_EQ(1, nThenCalls);
+			EXPECT_EQ(0, nCatchCalls);
 		}
 
-		TEST_METHOD(PreresolvedLiteral_Then)
+		TEST(ValuedTestResolution, PreresolvedLiteral_Then)
 		{
 			Promise<int> p1(1);                                              // preresolved
 
 			int nThenCalls = 0;
 			int nCatchCalls = 0;
 			p1.Then(
-				[&](int &result) {
-					Assert::AreEqual(1, result);
+				[&](int& result) {
+					EXPECT_EQ(1, result);
 					nThenCalls++;
 				});
 
-			Assert::AreEqual(1, nThenCalls);
-			Assert::AreEqual(0, nCatchCalls);
+			EXPECT_EQ(1, nThenCalls);
+			EXPECT_EQ(0, nCatchCalls);
 		}
 
-		TEST_METHOD(PreresolvedLiteral_Then_Catch)
+		TEST(ValuedTestResolution, PreresolvedLiteral_Then_Catch)
 		{
 			Promise<int> p1(1);                                              // preresolved
 
 			int nThenCalls = 0;
 			int nCatchCalls = 0;
 			p1.Then(
-				[&](int &result) {
-					Assert::AreEqual(1, result);
+				[&](int& result) {
+					EXPECT_EQ(1, result);
 					nThenCalls++;
 				}).Catch(
-				[&](auto ex) { nCatchCalls++; });
+					[&](auto ex) { nCatchCalls++; });
 
-			Assert::AreEqual(1, nThenCalls);
-			Assert::AreEqual(0, nCatchCalls);
+				EXPECT_EQ(1, nThenCalls);
+				EXPECT_EQ(0, nCatchCalls);
 		}
 
-		TEST_METHOD(PreresolvedLiteral_Then_Then)
+		TEST(ValuedTestResolution, PreresolvedLiteral_Then_Then)
 		{
 			Promise<int> p1(1);                                              // preresolved
 
 			int nThenCalls = 0;
 			int nCatchCalls = 0;
 			p1.Then(
-				[&](int &result) {
-					Assert::AreEqual(1, result);
+				[&](int& result) {
+					EXPECT_EQ(1, result);
 					nThenCalls++;
 				}).Then(
-				[&](int &result) {
-					Assert::AreEqual(1, result);
-					nThenCalls++;
-				});
+					[&](int& result) {
+						EXPECT_EQ(1, result);
+						nThenCalls++;
+					});
 
-			Assert::AreEqual(2, nThenCalls);
-			Assert::AreEqual(0, nCatchCalls);
+				EXPECT_EQ(2, nThenCalls);
+				EXPECT_EQ(0, nCatchCalls);
 		}
 
-		TEST_METHOD(PreresolvedLiteral_ThenCatch)
+		TEST(ValuedTestResolution, PreresolvedLiteral_ThenCatch)
 		{
 			Promise<int> p1(1);                                              // preresolved
 
 			int nThenCalls = 0;
 			int nCatchCalls = 0;
 			p1.Then(
-				[&](int &result) {
-					Assert::AreEqual(1, result);
+				[&](int& result) {
+					EXPECT_EQ(1, result);
 					nThenCalls++;
 				},
 				[&](auto ex) { nCatchCalls++; });
 
-			Assert::AreEqual(1, nThenCalls);
-			Assert::AreEqual(0, nCatchCalls);
+			EXPECT_EQ(1, nThenCalls);
+			EXPECT_EQ(0, nCatchCalls);
 		}
 
-		TEST_METHOD(PreresolvedLiteral_ThenCatch_Then)
+		TEST(ValuedTestResolution, PreresolvedLiteral_ThenCatch_Then)
 		{
 			Promise<int> p1(1);                                              // preresolved
 
 			int nThenCalls = 0;
 			int nCatchCalls = 0;
 			p1.Then(
-				[&](int &result) {
-					Assert::AreEqual(1, result);
+				[&](int& result) {
+					EXPECT_EQ(1, result);
 					nThenCalls++;
 				},
 				[&](auto ex) { nCatchCalls++; }).Then(
-				[&](int &result) {
-					Assert::AreEqual(1, result);
-					nThenCalls++;
-				});
+					[&](int& result) {
+						EXPECT_EQ(1, result);
+						nThenCalls++;
+					});
 
-			Assert::AreEqual(2, nThenCalls);
-			Assert::AreEqual(0, nCatchCalls);
+			EXPECT_EQ(2, nThenCalls);
+			EXPECT_EQ(0, nCatchCalls);
 		}
 
-		TEST_METHOD(PreresolvedMove_Then)
+		TEST(ValuedTestResolution, PreresolvedMove_Then)
 		{
 			// Construct a TranscriptionCounter, and use it to resolve the Promise.
 			int nMoveCtor = 0, nMoveAssign = 0, nCopyCtor = 0, nCopyAssign = 0;
@@ -929,14 +918,14 @@ namespace TestJSLikeValuedPromise
 					nThenCalls++;
 				});
 
-			Assert::AreEqual(1, nThenCalls);
-			Assert::AreEqual(0, nCatchCalls);
+			EXPECT_EQ(1, nThenCalls);
+			EXPECT_EQ(0, nCatchCalls);
 
-			Assert::AreEqual(1, nMoveCtor);    // performed by Promise(T &&)
-			Assert::AreEqual(0, nMoveAssign);
-			Assert::AreEqual(0, nCopyCtor);
-			Assert::AreEqual(0, nCopyAssign);
+			EXPECT_EQ(1, nMoveCtor);    // performed by Promise(T &&)
+			EXPECT_EQ(0, nMoveAssign);
+			EXPECT_EQ(0, nCopyCtor);
+			EXPECT_EQ(0, nCopyAssign);
 		}
 		//***************************************************************************************
-	};
+	}
 }

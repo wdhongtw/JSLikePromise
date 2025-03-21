@@ -1,4 +1,4 @@
-#include "CppUnitTest.h"
+#include "gtest/gtest.h"
 
 #include <coroutine>
 #include <functional>
@@ -8,17 +8,14 @@
 #include "../JSLikePromise.hpp"
 #include "TranscriptionCounter.hpp"
 
-using namespace Microsoft::VisualStudio::CppUnitTestFramework;
-
 using namespace std;
 using namespace JSLike;
 
 namespace TestReadmeCodeSnippets
 {
 	//***************************************************************************************
-	TEST_CLASS(ConsumerProducer)
-	{
-	private:
+	class ConsumerProducer : public testing::Test {
+	protected:
 		class DeepThought {
 		public:
 			DeepThought() = default;
@@ -31,17 +28,17 @@ namespace TestReadmeCodeSnippets
 		DeepThought deepThoughtAPI;
 
 #include "../docs/producer.hpp"
+	};
 
-	public:
-		TEST_METHOD(DeepThoughtCogitate)
+	namespace {
+		TEST_F(ConsumerProducer, DeepThoughtCogitate)
 		{
 #include "../docs/consumer.hpp"
 		}
-	};
+	}
 	//***************************************************************************************
-	TEST_CLASS(CoroutineIntegration_co_await_resolved)
-	{
-	private:
+	class CoroutineIntegration_co_await_resolved : public testing::Test {
+	protected:
 		Promise<int> taskThatReturnsAPromise() {
 			co_return Promise<int>(1);
 		}
@@ -51,21 +48,20 @@ namespace TestReadmeCodeSnippets
 			int result = co_await x;  // Suspend here if x is not resolved.  Resume after x is resolved.
 			cout << "result=" << result << "\n";
 		}
-
-	public:
-		TEST_METHOD(DeepThoughtCogitate)
+	};
+	namespace {
+		TEST_F(CoroutineIntegration_co_await_resolved, DeepThoughtCogitate)
 		{
 			coroutine1();
 		}
-	};
+	}
 	//***************************************************************************************
-	TEST_CLASS(CoroutineIntegration_co_await_rejected)
-	{
-	private:
+	class CoroutineIntegration_co_await_rejected : public testing::Test {
+	protected:
 		Promise<int> taskThatReturnsAPromise() {
 			auto p = Promise<int>([](auto promiseState) {
 				promiseState->reject(make_exception_ptr(out_of_range("invalid string position")));
-			});
+				});
 			co_return p;
 		}
 
@@ -80,17 +76,16 @@ namespace TestReadmeCodeSnippets
 				cout << "ex=" << ex.what() << "\n";
 			}
 		}
-
-	public:
-		TEST_METHOD(DeepThoughtCogitate)
+	};
+	namespace {
+		TEST_F(CoroutineIntegration_co_await_rejected, DeepThoughtCogitate)
 		{
 			coroutine1();
 		}
-	};
+	}
 	//***************************************************************************************
-	TEST_CLASS(CoroutineIntegration_ObtainResolvedValue)
-	{
-	private:
+	class CoroutineIntegration_ObtainResolvedValue : public testing::Test {
+	protected:
 		Promise<int> taskThatReturnsAnIntPromise() {
 			co_return 1;
 		}
@@ -99,28 +94,27 @@ namespace TestReadmeCodeSnippets
 			int& result = co_await taskThatReturnsAnIntPromise();
 			cout << "result=" << result << "\n";
 		}
-
-	public:
-		TEST_METHOD(GetValueVia_Then)
+	};
+	namespace {
+		TEST_F(CoroutineIntegration_ObtainResolvedValue, GetValueVia_Then)
 		{
 			taskThatReturnsAnIntPromise().Then([](int& result) {
 				cout << "result=" << result << "\n";
 				});
 		}
 
-		TEST_METHOD(GetValueVia_co_await)
+		TEST_F(CoroutineIntegration_ObtainResolvedValue, GetValueVia_co_await)
 		{
 			coroutine1();
 		}
-	};
+	}
 	//***************************************************************************************
-	TEST_CLASS(CoroutineIntegration_ResolvedValueLifecycle)
-	{
-	private:
+	class CoroutineIntegration_ResolvedValueLifecycle : public testing::Test {
+	protected:
 		class MovableType {
 		public:
 			MovableType() = delete;
-			MovableType(int i) : v(i) { }
+			MovableType(int i) : v(i) {}
 
 			MovableType(const MovableType&) = delete;
 			MovableType(MovableType&& other) noexcept { v = other.v; other.v = -1; }; // move constructor
@@ -134,7 +128,7 @@ namespace TestReadmeCodeSnippets
 		class CopyableType {
 		public:
 			CopyableType() = delete;
-			CopyableType(int i) : v(i) { }
+			CopyableType(int i) : v(i) {}
 
 			CopyableType(const CopyableType& other) { v = other.v; };  // copy constructor
 			//CopyableType(CopyableType&& other) = delete;  // Don't delete this.  It breaks e.g. "co_return CopyableType(1);"
@@ -148,7 +142,7 @@ namespace TestReadmeCodeSnippets
 		class ShareableFromThisType : public enable_shared_from_this<ShareableFromThisType> {
 		public:
 			ShareableFromThisType() = delete;
-			ShareableFromThisType(int i) : v(i) { }
+			ShareableFromThisType(int i) : v(i) {}
 
 			ShareableFromThisType(const ShareableFromThisType&) = default;
 			ShareableFromThisType(ShareableFromThisType&& other) = default;
@@ -201,13 +195,14 @@ namespace TestReadmeCodeSnippets
 			cout << "rr=" << rr->internalValue() << "\n";
 		}
 
-	public:
-		TEST_METHOD(Move)
+	};
+	namespace {
+		TEST_F(CoroutineIntegration_ResolvedValueLifecycle, Move)
 		{
 			coroutineThatMovesTheValue();
 		}
 
-		TEST_METHOD(MoveCaveat)
+		TEST_F(CoroutineIntegration_ResolvedValueLifecycle, MoveCaveat)
 		{
 			Promise<MovableType> p = taskThatReturnsAMovableResultTypePromise();
 			p.Then([](MovableType& result) {
@@ -221,24 +216,23 @@ namespace TestReadmeCodeSnippets
 
 					MovableType rr(move(result));  // BUG: v was moved already
 					cout << "rr=" << rr.internalValue() << "\n";
-				});
+					});
 		}
 
-		TEST_METHOD(Copy)
+		TEST_F(CoroutineIntegration_ResolvedValueLifecycle, Copy)
 		{
 			coroutineThatCopiesTheValue();
 		}
 
-		TEST_METHOD(Share)
+		TEST_F(CoroutineIntegration_ResolvedValueLifecycle, Share)
 		{
 			coroutineThatGetsASharedPointerToTheValue();
 		}
 
-	};
+	}
 	//***************************************************************************************
-	TEST_CLASS(NittyGritty_coroutines)
-	{
-	private:
+	class NittyGritty_coroutines : public testing::Test {
+	protected:
 		Promise<TranscriptionCounter> coReturnFromValue(TranscriptionCounter val) {
 			co_return val;
 		}
@@ -251,8 +245,9 @@ namespace TestReadmeCodeSnippets
 			co_return move(ref);   // use move() to cast to an rvalue
 		}
 
-	public:
-		TEST_METHOD(CallAndResolveWithReferenceByCopying)
+	};
+	namespace {
+		TEST_F(NittyGritty_coroutines, CallAndResolveWithReferenceByCopying)
 		{
 			// Construct a TranscriptionCounter
 			int nMoveCtor = 0, nMoveAssign = 0, nCopyCtor = 0, nCopyAssign = 0;
@@ -260,13 +255,13 @@ namespace TestReadmeCodeSnippets
 
 			auto p = coReturnFromReferenceByCopying(*obj);
 
-			Assert::AreEqual(0, nMoveCtor);
-			Assert::AreEqual(0, nMoveAssign);
-			Assert::AreEqual(1, nCopyCtor);   // (1) done by co_return
-			Assert::AreEqual(0, nCopyAssign);
+			EXPECT_EQ(0, nMoveCtor);
+			EXPECT_EQ(0, nMoveAssign);
+			EXPECT_EQ(1, nCopyCtor);   // (1) done by co_return
+			EXPECT_EQ(0, nCopyAssign);
 		}
 
-		TEST_METHOD(CallAndResolveWithReferenceByMoving)
+		TEST_F(NittyGritty_coroutines, CallAndResolveWithReferenceByMoving)
 		{
 			// Construct a TranscriptionCounter
 			int nMoveCtor = 0, nMoveAssign = 0, nCopyCtor = 0, nCopyAssign = 0;
@@ -274,13 +269,13 @@ namespace TestReadmeCodeSnippets
 
 			auto p = coReturnFromReferenceByMoving(*obj);
 
-			Assert::AreEqual(1, nMoveCtor);   // (1) done by co_return
-			Assert::AreEqual(0, nMoveAssign);
-			Assert::AreEqual(0, nCopyCtor);
-			Assert::AreEqual(0, nCopyAssign);
+			EXPECT_EQ(1, nMoveCtor);   // (1) done by co_return
+			EXPECT_EQ(0, nMoveAssign);
+			EXPECT_EQ(0, nCopyCtor);
+			EXPECT_EQ(0, nCopyAssign);
 		}
 
-		TEST_METHOD(CallAndResolveWithValue)
+		TEST_F(NittyGritty_coroutines, CallAndResolveWithValue)
 		{
 			// Construct a TranscriptionCounter
 			int nMoveCtor = 0, nMoveAssign = 0, nCopyCtor = 0, nCopyAssign = 0;
@@ -288,11 +283,11 @@ namespace TestReadmeCodeSnippets
 
 			Promise<TranscriptionCounter> p = coReturnFromValue(*obj);
 
-			Assert::AreEqual(2, nMoveCtor);    // (2) done to move parameter val into the coroutine's frame; (3) done by co_return
-			Assert::AreEqual(0, nMoveAssign);
-			Assert::AreEqual(1, nCopyCtor);    // (1) done to call coReturnFromValue() with val by value
-			Assert::AreEqual(0, nCopyAssign);
+			EXPECT_EQ(2, nMoveCtor);    // (2) done to move parameter val into the coroutine's frame; (3) done by co_return
+			EXPECT_EQ(0, nMoveAssign);
+			EXPECT_EQ(1, nCopyCtor);    // (1) done to call coReturnFromValue() with val by value
+			EXPECT_EQ(0, nCopyAssign);
 		}
-	};
+	}
 	//***************************************************************************************
 }
